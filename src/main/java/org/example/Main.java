@@ -35,7 +35,7 @@ public class Main {
             Path path = Paths.get(filePath);
             processFile(path);
 
-            Runtime r=Runtime.getRuntime();
+//            Runtime r=Runtime.getRuntime();
             // 2 variant
 //            fillLinesFromFiles(path);
 
@@ -53,8 +53,9 @@ public class Main {
 
             double timeSeconds = ((double) System.currentTimeMillis() - previousTime) / 1000;
 
-            System.out.println("Memory Used="+(r.totalMemory()-r.freeMemory()));
-//            System.out.println(atLeastTwoElements);
+//            System.out.println("Memory Used="+(r.totalMemory()-r.freeMemory()));
+//            long atLeastTwoLines = groups.stream().filter(groupInfo -> groupInfo.lines.size() > 1).count();
+//            System.out.println(atLeastTwoLines);
             System.out.println(timeSeconds);
 
         }
@@ -175,6 +176,8 @@ public class Main {
                     break;
                 }
 
+                value = getCorrectedValue(value);
+
                 if (group == 0) {
 
                     addColumnsIntoValuesOfColumns(column);
@@ -218,6 +221,22 @@ public class Main {
             Set<String> lines = groupLinesMap.getOrDefault(group, new HashSet<>());
             lines.add(line);
             groupLinesMap.putIfAbsent(group, lines);
+        }
+
+        private String getCorrectedValue(String value) {
+            value = value.replace("\"", "");
+            int indexDot = value.indexOf(".");
+            if (indexDot != -1) {
+                int indexOfLastChar = value.length() - 1;
+
+                while (value.charAt(indexOfLastChar) == '0') {
+                    indexOfLastChar--;
+                }
+                if (value.charAt(indexOfLastChar) == '.')
+                    indexOfLastChar--;
+                value = value.substring(0, indexOfLastChar + 1);
+            }
+            return value;
         }
 
         private boolean isEmptyValue(String value) {
