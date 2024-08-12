@@ -17,9 +17,12 @@ public class Main {
 
     static class Solution {
 
-        private final List<LineInfo> lines = new ArrayList<>();
         private final List<Map<String, Integer>> valuesInColumns = new ArrayList<>();
         private final List<String> valuesInLine = new ArrayList<>();
+        private final Map<Integer, Set<String>> groupLinesMap = new HashMap<>();
+        private List<GroupInfo> groups;
+        // 2 variant
+//        private final Map<Integer, Integer> lineGroupMap = new HashMap<>();
         private int globalGroup = 0;
         private String filePath;
         private final Set<String> emptyLines = new HashSet<>();
@@ -32,18 +35,26 @@ public class Main {
             Path path = Paths.get(filePath);
             processFile(path);
 
-            lines.sort(this::sortByGroup);
-            removeDuplicates();
-            fillNumberOfElementsInGroup();
-            lines.sort(this::sortByNumberOfElements);
-            addEmptyLines();
+            Runtime r=Runtime.getRuntime();
+            // 2 variant
+//            fillLinesFromFiles(path);
+
+            groups = new ArrayList<>(groupLinesMap.size());
+            groupLinesMap.forEach((k, v) -> groups.add(new GroupInfo(k, v)));
+            groups.sort((o1, o2) -> {
+                if (o2.lines.size() == o1.lines.size()){
+                    return o1.group - o2.group;
+                }
+                return o2.lines.size() - o1.lines.size();
+            });
 
             rewriteChangedLinesToCurrentFile();
 //            createNewFile();
 
-            long timeSeconds = (System.currentTimeMillis() - previousTime) / 1000;
-//            Runtime r=Runtime.getRuntime();
-//            System.out.println("Memory Used="+(r.totalMemory()-r.freeMemory()));
+            double timeSeconds = ((double) System.currentTimeMillis() - previousTime) / 1000;
+
+            System.out.println("Memory Used="+(r.totalMemory()-r.freeMemory()));
+//            System.out.println(atLeastTwoElements);
             System.out.println(timeSeconds);
 
         }
@@ -69,21 +80,29 @@ public class Main {
 
         private void rewriteChangedLinesToCurrentFile() {
 
-            long atLeastTwoLines = getAtLeastTwoElements();
+            long atLeastTwoLines = groups.stream().filter(groupInfo -> groupInfo.lines.size() > 1).count();
+            System.out.println(atLeastTwoLines);
             try (BufferedWriter writer = new BufferedWriter(new FileWriter(filePath))) {
                 writer.write("Number of groups with more than one element: " + atLeastTwoLines);
                 writer.newLine();
 
-                int previousGroup = -1;
-                for (LineInfo element : lines) {
-                    if (previousGroup != element.group) {
-                        writer.newLine();
-                        writer.write("Group: " + element.group);
+                for (GroupInfo element : groups) {
+
+                    writer.newLine();
+                    writer.write("Group: " + element.group);
+                    writer.newLine();
+
+                    for (String line: element.lines) {
+                        writer.write(line);
                         writer.newLine();
                     }
-                    writer.write(element.line);
+                }
+
+                for (String line: emptyLines) {
                     writer.newLine();
-                    previousGroup = element.group;
+                    writer.write("Group: " + ++globalGroup);
+                    writer.write(line);
+                    writer.newLine();
                 }
 
             } catch (Exception exception) {
@@ -93,18 +112,43 @@ public class Main {
 
         private void processFile(Path path) {
 
+            int numberOfLine = 0;
             try (BufferedReader bufferedReader = Files.newBufferedReader(path)) {
                 String line;
                 while ((line = bufferedReader.readLine()) != null) {
-                    processLine(line);
+                    processLine(line, numberOfLine++);
                 }
             } catch (Exception exception) {
                 System.out.println(exception.getMessage());
             }
 
+            valuesInColumns.clear();
+
         }
 
-        private void processLine(String line) {
+        // 2 variant
+//        private void fillLinesFromFiles(Path path) {
+//
+//            int numberOfLine = 0;
+//            try (BufferedReader bufferedReader = Files.newBufferedReader(path)) {
+//                String line;
+//                while ((line = bufferedReader.readLine()) != null) {
+//                    Integer group = lineGroupMap.get(numberOfLine++);
+//                    if (group == null)
+//                        continue;
+//                    Set<String> lines = groupLinesMap.getOrDefault(group, new HashSet<>());
+//                    lines.add(line);
+//                    groupLinesMap.putIfAbsent(group, lines);
+//                }
+//            } catch (Exception exception) {
+//                System.out.println(exception.getMessage());
+//            }
+//
+//            lineGroupMap.clear();
+//
+//        }
+
+        private void processLine(String line, int numberOfLine) {
 
             int column = 0;
             boolean isValid = true;
@@ -120,7 +164,7 @@ public class Main {
                     index = line.length();
                 }
 
-                if (value.isEmpty() || value.equals("\"\"")) {
+                if (isEmptyValue(value)) {
                     column++;
                     valuesInLine.add(value);
                     continue;
@@ -159,22 +203,31 @@ public class Main {
 
             fillValuesOfColumns(group);
             valuesInLine.clear();
-            fillLinesAndEmptyLines(line, group, lineWithOnlyEmptyColumns);
+            fillLinesAndEmptyLines(line, group, lineWithOnlyEmptyColumns, numberOfLine);
 
         }
 
-        private void fillLinesAndEmptyLines(String line, int group, boolean lineWithOnlyEmptyColumns) {
+        private void fillLinesAndEmptyLines(String line, int group, boolean lineWithOnlyEmptyColumns, int numberOfLine) {
             if (lineWithOnlyEmptyColumns) {
                 emptyLines.add(line);
                 return;
             }
-            lines.add(new LineInfo(line, group));
+            // 2 variant
+//            lineGroupMap.putIfAbsent(numberOfLine, group);
+            // current variant
+            Set<String> lines = groupLinesMap.getOrDefault(group, new HashSet<>());
+            lines.add(line);
+            groupLinesMap.putIfAbsent(group, lines);
+        }
+
+        private boolean isEmptyValue(String value) {
+            return value.isEmpty() || value.equals("\"\"");
         }
 
         private void fillValuesOfColumns(int group) {
             int column = 0;
             for (String value : valuesInLine) {
-                if (value.isEmpty()) {
+                if (isEmptyValue(value)) {
                     column++;
                     continue;
                 }
@@ -184,75 +237,6 @@ public class Main {
                 map.putIfAbsent(value, group);
 
                 column++;
-            }
-        }
-
-        private int sortByGroup(LineInfo o1, LineInfo o2) {
-
-            if (o1.group == o2.group) {
-                return o1.line.compareTo(o2.line);
-            }
-            return o1.group - o2.group;
-
-        }
-
-        private int sortByNumberOfElements(LineInfo o1, LineInfo o2) {
-
-            if (o1.number == o2.number) {
-                return o1.group - o2.group;
-            }
-            return o2.number - o1.number;
-
-        }
-
-        private int getAtLeastTwoElements() {
-            int previousGroup = -1;
-            List<Integer> groupElements = new ArrayList<>();
-            for (LineInfo element : lines) {
-                if (element.number <= 1) {
-                    break;
-                }
-                if (previousGroup != element.group) {
-                    groupElements.add(element.group);
-                }
-                previousGroup = element.group;
-            }
-            return groupElements.size();
-        }
-
-        private void removeDuplicates() {
-            LineInfo previousElement = null;
-            List<LineInfo> deletingElements = new ArrayList<>();
-            for (LineInfo element : lines) {
-                if (previousElement == null || previousElement.group != element.group) {
-                    previousElement = element;
-                    continue;
-                }
-                if (element.line.equals(previousElement.line)) {
-                    deletingElements.add(element);
-                }
-                previousElement = element;
-            }
-
-            lines.removeAll(deletingElements);
-        }
-
-        private void fillNumberOfElementsInGroup() {
-            int previousGroup = -1;
-            List<LineInfo> groupElements = new ArrayList<>();
-            for (LineInfo element : lines) {
-                if (previousGroup != element.group) {
-                    groupElements.forEach(elem -> elem.number = groupElements.size());
-                    groupElements.clear();
-                }
-                groupElements.add(element);
-                previousGroup = element.group;
-            }
-        }
-
-        private void addEmptyLines() {
-            for (String empty: emptyLines) {
-                lines.add(new LineInfo(empty, ++globalGroup, 1));
             }
         }
 
@@ -266,23 +250,7 @@ public class Main {
 
     }
 
-    static class LineInfo {
-
-        String line;
-        int group;
-        int number;
-
-        public LineInfo(String line, int group) {
-            this.line = line;
-            this.group = group;
-        }
-
-        public LineInfo(String line, int group, int number) {
-            this.line = line;
-            this.group = group;
-            this.number = number;
-        }
-
+    private record GroupInfo(int group, Set<String> lines) {
     }
 
 }
