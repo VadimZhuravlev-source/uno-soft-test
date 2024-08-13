@@ -12,12 +12,12 @@ public class Main {
     public static void main(String[] args) {
         Solution solution = new Solution();
         String path = args[0];
-        solution.createFile(path);
+        solution.rewriteFile(path);
     }
 
     static class Solution {
 
-        private final List<Map<String, Integer>> valuesInColumns = new ArrayList<>();
+        private final List<Map<Long, Integer>> valuesInColumns = new ArrayList<>();
         private final List<String> valuesInLine = new ArrayList<>();
         private final Map<Integer, Set<String>> groupLinesMap = new HashMap<>();
         private List<GroupInfo> groups;
@@ -27,7 +27,7 @@ public class Main {
         private String filePath;
         private final Set<String> emptyLines = new HashSet<>();
 
-        void createFile(String filePath) {
+        void rewriteFile(String filePath) {
 
             this.filePath = filePath;
             long previousTime = System.currentTimeMillis();
@@ -85,25 +85,25 @@ public class Main {
             System.out.println(atLeastTwoLines);
             try (BufferedWriter writer = new BufferedWriter(new FileWriter(filePath))) {
                 writer.write("Number of groups with more than one element: " + atLeastTwoLines);
-                writer.newLine();
 
                 for (GroupInfo element : groups) {
 
                     writer.newLine();
-                    writer.write("Group: " + element.group);
                     writer.newLine();
+                    writer.write("Group: " + element.group);
 
                     for (String line: element.lines) {
-                        writer.write(line);
                         writer.newLine();
+                        writer.write(line);
                     }
                 }
 
                 for (String line: emptyLines) {
                     writer.newLine();
-                    writer.write("Group: " + ++globalGroup);
-                    writer.write(line);
                     writer.newLine();
+                    writer.write("Group: " + ++globalGroup);
+                    writer.newLine();
+                    writer.write(line);
                 }
 
             } catch (Exception exception) {
@@ -181,8 +181,8 @@ public class Main {
                 if (group == 0) {
 
                     addColumnsIntoValuesOfColumns(column);
-                    Map<String, Integer> map = valuesInColumns.get(column);
-                    int groupMap = map.getOrDefault(value, 0);
+                    Map<Long, Integer> map = valuesInColumns.get(column);
+                    int groupMap = map.getOrDefault(Long.parseLong(value), 0);
                     if (groupMap != 0) {
                         group = groupMap;
                     }
@@ -200,7 +200,7 @@ public class Main {
                 return;
             }
 
-            if (group == 0) {
+            if (group == 0 && !lineWithOnlyEmptyColumns) {
                 group = ++globalGroup;
             }
 
@@ -224,18 +224,22 @@ public class Main {
         }
 
         private String getCorrectedValue(String value) {
-            value = value.replace("\"", "");
+
+            int beginIndex = value.indexOf('\"') + 1;
+            int endIndex = value.lastIndexOf('\"');
             int indexDot = value.indexOf(".");
             if (indexDot != -1) {
-                int indexOfLastChar = value.length() - 1;
-
-                while (value.charAt(indexOfLastChar) == '0') {
-                    indexOfLastChar--;
-                }
-                if (value.charAt(indexOfLastChar) == '.')
-                    indexOfLastChar--;
-                value = value.substring(0, indexOfLastChar + 1);
+                endIndex = indexDot;
+//                int indexOfLastChar = value.length() - 1;
+//
+//                while (value.charAt(indexOfLastChar) == '0') {
+//                    indexOfLastChar--;
+//                }
+//                if (value.charAt(indexOfLastChar) == '.')
+//                    indexOfLastChar--;
+//                value = value.substring(0, indexOfLastChar + 1);
             }
+            value = value.substring(beginIndex, endIndex);
             return value;
         }
 
@@ -252,8 +256,8 @@ public class Main {
                 }
 
                 addColumnsIntoValuesOfColumns(column);
-                Map<String, Integer> map = valuesInColumns.get(column);
-                map.putIfAbsent(value, group);
+                Map<Long, Integer> map = valuesInColumns.get(column);
+                map.putIfAbsent(Long.parseLong(value), group);
 
                 column++;
             }
